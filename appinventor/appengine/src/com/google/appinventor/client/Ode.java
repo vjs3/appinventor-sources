@@ -819,16 +819,19 @@ public class Ode implements EntryPoint {
           StatusCodeException e = (StatusCodeException) caught;
           int statusCode = e.getStatusCode();
           switch (statusCode) {
-            case Response.SC_UNAUTHORIZED:
-              // unauthorized => not on whitelist
-              // getEncodedResponse() gives us the message that we wrote in
-              // OdeAuthFilter.writeWhitelistErrorMessage().
-              Window.alert(e.getEncodedResponse());
-              return;
             case Response.SC_FORBIDDEN:
               // forbidden => need tos accept
               Window.open("/" + ServerLayout.YA_TOS_FORM, "_self", null);
               return;
+            case Response.SC_UNAUTHORIZED:
+              // unauthorized => not on whitelist
+              // getEncodedResponse() gives us the message that we wrote in
+              // OdeAuthFilter.writeWhitelistErrorMessage().
+              if (!("".equals(e.getEncodedResponse()))) {
+                Window.alert(e.getEncodedResponse());
+                return;
+              }
+              // Intentionally fall through here for blank error (dev server user doesn't exist)
             case Response.SC_PRECONDITION_FAILED:
               String locale = Window.Location.getParameter("locale");
               String repo = Window.Location.getParameter("repo");
