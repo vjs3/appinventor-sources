@@ -6,6 +6,8 @@
 
 package com.google.appinventor.buildserver;
 
+import com.google.appinventor.buildserver.util.AARLibraries;
+import com.google.appinventor.buildserver.util.AARLibrary;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
@@ -13,7 +15,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import com.google.common.io.Resources;
-
+import com.android.ide.common.internal.AaptCruncher;
+import com.android.ide.common.internal.PngCruncher;
 import com.android.sdklib.build.ApkBuilder;
 
 import org.codehaus.jettison.json.JSONArray;
@@ -37,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -168,6 +172,14 @@ public final class Compiler {
       new ConcurrentHashMap<String, Set<String>>();
   private final Set<String> uniqueLibsNeeded = Sets.newHashSet();
   
+  /**
+   * Set of exploded AAR libraries.
+   */
+  private AARLibraries explodedAarLibs;
+  private File appRJava;
+  private File appRTxt;
+  private File mergedResDir;
+
   // TODO(Will): Remove the following Set once the deprecated
   //             @SimpleBroadcastReceiver annotation is removed. It should
   //             should remain for the time being because otherwise we'll break
@@ -698,15 +710,36 @@ public final class Compiler {
       return false;
     }
 
+    // Attach Android AAR Library dependencies
+    out.println("________Attaching Android Archive (AAR) libraries");
+    if (!compiler.attachAarLibraries(buildDir)) {
+      return false;
+    }
+
     // Add raw assets to sub-directory of project assets.
     out.println("________Attaching component assets");
     if (!compiler.attachCompAssets()) {
       return false;
     }
 
+    // Invoke aapt to package everything up
+    out.println("________Invoking AAPT");
+    File deployDir = createDir(buildDir, "deploy");
+    String tmpPackageName = deployDir.getAbsolutePath() + SLASH +
+        project.getProjectName() + ".ap_";
+    File srcJavaDir = createDirectory(buildDir, "generated/src");
+    File rJavaDir = createDirectory(buildDir, "generated/symbols");
+    if (!compiler.runAaptPackage(manifestFile, resDir, tmpPackageName, srcJavaDir, rJavaDir)) {
+      return false;
+    }
+    setProgress(30);
+
     // Create class files.
     out.println("________Compiling source files");
     File classesDir = createDir(buildDir, "classes");
+    if (!compiler.generateRClasses(classesDir)) {
+      return false;
+    }
     if (!compiler.generateClasses(classesDir)) {
       return false;
     }
@@ -735,16 +768,6 @@ public final class Compiler {
       return false;
     }
     setProgress(85);
-
-    // Invoke aapt to package everything up
-    out.println("________Invoking AAPT");
-    File deployDir = createDir(buildDir, "deploy");
-    String tmpPackageName = deployDir.getAbsolutePath() + SLASH +
-        project.getProjectName() + ".ap_";
-    if (!compiler.runAaptPackage(manifestFile, resDir, tmpPackageName)) {
-      return false;
-    }
-    setProgress(90);
 
     // Seal the apk with ApkBuilder
     out.println("________Invoking ApkBuilder");
@@ -964,6 +987,18 @@ public final class Compiler {
           classpath.append(sourcePath);
           classpath.append(COLON);
         }
+      }
+
+      // Add dependencies for classes.jar in any AAR libraries
+      for (File classesJar : explodedAarLibs.getClasses()) {
+        final String abspath = classesJar.getAbsolutePath();
+        uniqueLibsNeeded.add(abspath);
+        classpath.append(abspath);
+        classpath.append(COLON);
+      }
+      if (explodedAarLibs.size() > 0) {
+        classpath.append(explodedAarLibs.getOutputDirectory().getAbsolutePath());
+        classpath.append(COLON);
       }
 
       classpath.append(getResource(ANDROID_RUNTIME));
@@ -1263,7 +1298,7 @@ public final class Compiler {
     return true;
   }
 
-  private boolean runAaptPackage(File manifestFile, File resDir, String tmpPackageName) {
+  private boolean runAaptPackage(File manifestFile, File resDir, String tmpPackageName, File sourceOutputDir, File symbolOutputDir) {
     // Need to make sure assets directory exists otherwise aapt will fail.
     createDir(project.getAssetsDirectory());
     String aaptTool;
@@ -1280,18 +1315,42 @@ public final class Compiler {
       userErrors.print(String.format(ERROR_IN_STAGE, "AAPT"));
       return false;
     }
-    String[] aaptPackageCommandLine = {
-        getResource(aaptTool),
-        "package",
-        "-v",
-        "-f",
-        "-M", manifestFile.getAbsolutePath(),
-        "-S", resDir.getAbsolutePath(),
-        "-A", project.getAssetsDirectory().getAbsolutePath(),
-        "-I", getResource(ANDROID_RUNTIME),
-        "-F", tmpPackageName,
-        libsDir.getAbsolutePath()
-    };
+    if (!mergeResources(resDir, project.getBuildDirectory(), aaptTool)) {
+      LOG.warning("Unable to merge resources");
+      err.println("Unable to merge resources");
+      userErrors.print(String.format(ERROR_IN_STAGE, "AAPT"));
+      return false;
+    }
+    List<String> aaptPackageCommandLineArgs = new ArrayList<String>();
+    aaptPackageCommandLineArgs.add(getResource(aaptTool));
+    aaptPackageCommandLineArgs.add("package");
+    aaptPackageCommandLineArgs.add("-v");
+    aaptPackageCommandLineArgs.add("-f");
+    aaptPackageCommandLineArgs.add("-M");
+    aaptPackageCommandLineArgs.add(manifestFile.getAbsolutePath());
+    aaptPackageCommandLineArgs.add("-S");
+    aaptPackageCommandLineArgs.add(mergedResDir.getAbsolutePath());
+    aaptPackageCommandLineArgs.add("-A");
+    aaptPackageCommandLineArgs.add(project.getAssetsDirectory().getAbsolutePath());
+    aaptPackageCommandLineArgs.add("-I");
+    aaptPackageCommandLineArgs.add(getResource(ANDROID_RUNTIME));
+    aaptPackageCommandLineArgs.add("-F");
+    aaptPackageCommandLineArgs.add(tmpPackageName);
+    if (explodedAarLibs.size() > 0) {
+      // If AARs are used, generate R.txt for later processing
+      String packageName = Signatures.getPackageName(project.getMainClass());
+      aaptPackageCommandLineArgs.add("-m");
+      aaptPackageCommandLineArgs.add("-J");
+      aaptPackageCommandLineArgs.add(sourceOutputDir.getAbsolutePath());
+      aaptPackageCommandLineArgs.add("--custom-package");
+      aaptPackageCommandLineArgs.add(packageName);
+      aaptPackageCommandLineArgs.add("--output-text-symbols");
+      aaptPackageCommandLineArgs.add(symbolOutputDir.getAbsolutePath());
+      appRJava = new File(sourceOutputDir, packageName.replaceAll("\\.", "/") + "/R.java");
+      appRTxt = new File(symbolOutputDir, "R.txt");
+    }
+    aaptPackageCommandLineArgs.add(libsDir.getAbsolutePath());
+    String[] aaptPackageCommandLine = aaptPackageCommandLineArgs.toArray(new String[aaptPackageCommandLineArgs.size()]);
     long startAapt = System.currentTimeMillis();
     // Using System.err and System.out on purpose. Don't want to pollute build messages with
     // tools output
@@ -1353,6 +1412,45 @@ public final class Compiler {
     }
   }
 
+  /**
+   * Attach any AAR libraries to the build.
+   *
+   * @param buildDir Base directory of the build
+   * @return true on success, otherwise false
+   */
+  private boolean attachAarLibraries(File buildDir) {
+    final File explodedBaseDir = createDirectory(buildDir, "exploded-aars");
+    final File generatedDir = createDirectory(buildDir, "generated");
+    final File genSrcDir = createDirectory(generatedDir, "src");
+    explodedAarLibs = new AARLibraries(genSrcDir);
+    final Set<String> processedLibs = new HashSet<>();
+
+    // walk components list for libraries ending in ".aar"
+    try {
+      for (Set<String> libs : libsNeeded.values()) {
+        Iterator<String> i = libs.iterator();
+        while (i.hasNext()) {
+          String libname = i.next();
+          if (libname.endsWith(".aar")) {
+            i.remove();
+            if (!processedLibs.contains(libname)) {
+              // explode libraries into ${buildDir}/exploded-aars/<package>/
+              AARLibrary aarLib = new AARLibrary(new File(getResource(RUNTIME_FILES_DIR + libname)));
+              aarLib.unpackToDirectory(explodedBaseDir);
+              explodedAarLibs.add(aarLib);
+              processedLibs.add(libname);
+            }
+          }
+        }
+      }
+      return true;
+    } catch(IOException e) {
+      e.printStackTrace();
+      userErrors.print(String.format(ERROR_IN_STAGE, "Attach AAR Libraries"));
+      return false;
+    }
+  }
+
   private boolean attachCompAssets() {
     createDir(project.getAssetsDirectory()); // Needed to insert resources.
     try {
@@ -1387,6 +1485,40 @@ public final class Compiler {
       userErrors.print(String.format(ERROR_IN_STAGE, "Assets"));
       return false;
     }
+  }
+
+  /**
+   * Merge XML resources from different dependencies into a single file that can be passed to AAPT.
+   *
+   * @param mainResDir Directory for resources from the application (i.e., not libraries)
+   * @param buildDir Build directory path. Merged resources will be placed at $buildDir/intermediates/res/merged
+   * @param aaptTool Path to the AAPT tool
+   * @return true if the resources were merged successfully, otherwise false
+   */
+  private boolean mergeResources(File mainResDir, File buildDir, String aaptTool) {
+    // these should exist from earlier build steps
+    File intermediates = createDirectory(buildDir, "intermediates");
+    File resDir = createDirectory(intermediates, "res");
+    mergedResDir = createDirectory(resDir, "merged");
+    PngCruncher cruncher = new AaptCruncher(getResource(aaptTool), null, null);
+    return explodedAarLibs.mergeResources(mergedResDir, mainResDir, cruncher);
+  }
+
+  private boolean generateRClasses(File outputDir) {
+    int error;
+    try {
+      error = explodedAarLibs.writeRClasses(outputDir, Signatures.getPackageName(project.getMainClass()), appRTxt);
+    } catch (IOException|InterruptedException e) {
+      e.printStackTrace();
+      userErrors.print(String.format(ERROR_IN_STAGE, "Generate R Classes"));
+      return false;
+    }
+    if (error != 0) {
+      System.err.println("javac returned error code " + error);
+      userErrors.print(String.format(ERROR_IN_STAGE, "Attach AAR Libraries"));
+      return false;
+    }
+    return true;
   }
 
   /**
