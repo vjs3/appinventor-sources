@@ -1,6 +1,6 @@
 // -*- mode: java; c-basic-offset: 2; -*-
 // Copyright 2009-2011 Google, All Rights reserved
-// Copyright 2011-2016 MIT, All rights reserved
+// Copyright 2011-2017 MIT, All rights reserved
 // Released under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
@@ -133,6 +133,12 @@ public final class Compiler {
       RUNTIME_FILES_DIR + "acra-4.4.0.jar";
   private static final String ANDROID_RUNTIME =
       RUNTIME_FILES_DIR + "android.jar";
+  private static final String[] SUPPORT_JARS = new String[] {
+    RUNTIME_FILES_DIR + "appcompat-v7.jar",
+    RUNTIME_FILES_DIR + "internal_impl.jar",
+    RUNTIME_FILES_DIR + "support-annotations.jar",
+    RUNTIME_FILES_DIR + "support-v4.jar"
+  };
   private static final String COMP_BUILD_INFO =
       RUNTIME_FILES_DIR + "simple_components_build_info.json";
   private static final String DX_JAR =
@@ -432,6 +438,46 @@ public final class Compiler {
     return name.replace("&", "and");
   }
 
+  /**
+   * Create the default color and styling for the app.
+   */
+  private boolean createValuesXml(File valuesDir) {
+    String colorPrimary = project.getPrimaryColor() == null ? "#A5CF47" : project.getPrimaryColor();
+    String colorPrimaryDark = project.getPrimaryColorDark() == null ? "#6C7F3A" : project.getPrimaryColorDark();
+    String colorAccent = project.getAccentColor() == null ? "#00728A" : project.getAccentColor();
+    File colorsXml = new File(valuesDir, "colors.xml");
+    File stylesXml = new File(valuesDir, "styles.xml");
+    try {
+      BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(colorsXml), "UTF-8"));
+      out.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+      out.write("<resources>\n");
+      out.write("<color name=\"colorPrimary\">");
+      out.write(colorPrimary);
+      out.write("</color>\n");
+      out.write("<color name=\"colorPrimaryDark\">");
+      out.write(colorPrimaryDark);
+      out.write("</color>\n");
+      out.write("<color name=\"colorAccent\">");
+      out.write(colorAccent);
+      out.write("</color>\n");
+      out.write("</resources>\n");
+      out.close();
+      out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(stylesXml), "UTF-8"));
+      out.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+      out.write("<resources>\n");
+      out.write("<style name=\"AppTheme\" parent=\"Theme.AppCompat.Light.DarkActionBar\">\n");
+      out.write("<item name=\"colorPrimary\">@color/colorPrimary</item>\n");
+      out.write("<item name=\"colorPrimaryDark\">@color/colorPrimaryDark</item>\n");
+      out.write("<item name=\"colorAccent\">@color/colorAccent</item>\n");
+      out.write("</style>\n");
+      out.write("</resources>\n");
+      out.close();
+    } catch(IOException e) {
+      return false;
+    }
+    return true;
+  }
+
   /*
    * Creates an AndroidManifest.xml file needed for the Android application.
    */
@@ -444,7 +490,7 @@ public final class Compiler {
     String vCode = (project.getVCode() == null) ? DEFAULT_VERSION_CODE : project.getVCode();
     String vName = (project.getVName() == null) ? DEFAULT_VERSION_NAME : cleanName(project.getVName());
     String aName = (project.getAName() == null) ? DEFAULT_APP_NAME : cleanName(project.getAName());
-    String minSDK = DEFAULT_MIN_SDK;
+    String minSDK = (project.getMinSdk() == null) ? DEFAULT_MIN_SDK : project.getMinSdk();
     LOG.log(Level.INFO, "VCode: " + project.getVCode());
     LOG.log(Level.INFO, "VName: " + project.getVName());
 
@@ -526,6 +572,7 @@ public final class Compiler {
       } else {
         out.write("android:name=\"com.google.appinventor.components.runtime.multidex.MultiDexApplication\" ");
       }
+      out.write("android:theme=\"@style/AppTheme\" ");
       out.write(">\n");
 
       for (Project.SourceDescriptor source : project.getSources()) {
@@ -693,6 +740,13 @@ public final class Compiler {
     out.println("________Creating animation xml");
     File animDir = createDir(resDir, "anim");
     if (!compiler.createAnimationXml(animDir)) {
+      return false;
+    }
+
+    // Create values directory and style xml files
+    out.println("________Creating style xml");
+    File styleDir = createDir(resDir, "values");
+    if (!compiler.createValuesXml(styleDir)) {
       return false;
     }
 
@@ -956,6 +1010,11 @@ public final class Compiler {
       classpath.append(getResource(SIMPLE_ANDROID_RUNTIME_JAR));
       classpath.append(COLON);
 
+      for (String jar : SUPPORT_JARS) {
+        classpath.append(getResource(jar));
+        classpath.append(COLON);
+      }
+
       // attach the jars of external comps
       Set<String> addedExtJars = new HashSet<String>();
       for (String type : extCompTypes) {
@@ -991,10 +1050,12 @@ public final class Compiler {
 
       // Add dependencies for classes.jar in any AAR libraries
       for (File classesJar : explodedAarLibs.getClasses()) {
-        final String abspath = classesJar.getAbsolutePath();
-        uniqueLibsNeeded.add(abspath);
-        classpath.append(abspath);
-        classpath.append(COLON);
+        if (classesJar != null) {  // true for optimized AARs in App Inventor libs
+          final String abspath = classesJar.getAbsolutePath();
+          uniqueLibsNeeded.add(abspath);
+          classpath.append(abspath);
+          classpath.append(COLON);
+        }
       }
       if (explodedAarLibs.size() > 0) {
         classpath.append(explodedAarLibs.getOutputDirectory().getAbsolutePath());
@@ -1201,6 +1262,10 @@ public final class Compiler {
     inputList.add(new File(getResource(SIMPLE_ANDROID_RUNTIME_JAR)));
     inputList.add(new File(getResource(KAWA_RUNTIME)));
     inputList.add(new File(getResource(ACRA_RUNTIME)));
+
+    for (String jar : SUPPORT_JARS) {
+      inputList.add(new File(getResource(jar)));
+    }
 
     for (String lib : uniqueLibsNeeded) {
       libList.add(new File(lib));
@@ -1505,6 +1570,9 @@ public final class Compiler {
   }
 
   private boolean generateRClasses(File outputDir) {
+    if (explodedAarLibs.size() == 0) {
+      return true;  // nothing to see here
+    }
     int error;
     try {
       error = explodedAarLibs.writeRClasses(outputDir, Signatures.getPackageName(project.getMainClass()), appRTxt);

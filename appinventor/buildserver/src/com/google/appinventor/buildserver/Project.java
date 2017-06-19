@@ -1,6 +1,6 @@
 // -*- mode: java; c-basic-offset: 2; -*-
 // Copyright 2009-2011 Google, All Rights reserved
-// Copyright 2011-2012 MIT, All rights reserved
+// Copyright 2011-2017 MIT, All rights reserved
 // Released under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 package com.google.appinventor.buildserver;
@@ -82,6 +82,10 @@ public final class Project {
   private static final String BUILDTAG = "build";
   private static final String USESLOCATIONTAG = "useslocation";
   private static final String ANAMETAG = "aname";
+  private static final String ANDROID_MIN_SDK_TAG = "androidminsdk";
+  private static final String COLOR_PRIMARY = "color.primary";
+  private static final String COLOR_PRIMARY_DARK = "color.primary.dark";
+  private static final String COLOR_ACCENT = "color.accent";
 
   // Table containing project properties
   private Properties properties;
@@ -266,6 +270,42 @@ public final class Project {
    */
   public void setAName(String aname) {
     properties.setProperty(ANAMETAG, aname);
+  }
+
+  /**
+   * Returns the minimum SDK desired for the app.
+   *
+   * @return  the minimum Android sdk
+   */
+  public String getMinSdk() {
+    return properties.getProperty(ANDROID_MIN_SDK_TAG, "4");
+  }
+
+  /**
+   * Returns the primary color provided by the user.
+   *
+   * @return  primary color, or null if the default is requested
+   */
+  public String getPrimaryColor() {
+    return properties.getProperty(COLOR_PRIMARY);
+  }
+
+  /**
+   * Returns the dark primary color provided by the user.
+   *
+   * @return  dark primary color, or null if the default is requested
+   */
+  public String getPrimaryColorDark() {
+    return properties.getProperty(COLOR_PRIMARY_DARK);
+  }
+
+  /**
+   * Returns the accent color provided by the user.
+   *
+   * @return  accent color, or null if the default is requested
+   */
+  public String getAccentColor() {
+    return properties.getProperty(COLOR_ACCENT);
   }
 
   /**
