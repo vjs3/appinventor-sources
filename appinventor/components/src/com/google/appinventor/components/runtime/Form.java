@@ -176,6 +176,10 @@ public class Form extends Activity
   // AppInventor lifecycle: listeners for the Initialize Event
   private final Set<OnInitializeListener> onInitializeListeners = Sets.newHashSet();
 
+
+
+   private final Set<OnPrepareOptionsMenuListener> onPrepareOptionsMenuListeners = Sets.newHashSet();
+
   // Listeners for options menu.
   private final Set<OnCreateOptionsMenuListener> onCreateOptionsMenuListeners = Sets.newHashSet();
   private final Set<OnOptionsItemSelectedListener> onOptionsItemSelectedListeners = Sets.newHashSet();
@@ -1817,7 +1821,27 @@ public class Form extends Activity
     return true;
   }
 
-  public void addExitButtonToMenu(Menu menu) {
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        menu.clear();
+        super.onPrepareOptionsMenu(menu);
+
+        addExitButtonToMenu(menu);
+        addAboutInfoToMenu(menu);
+
+        for (OnPrepareOptionsMenuListener onPrepareOptionsMenuListener : onPrepareOptionsMenuListeners) {
+            onPrepareOptionsMenuListener.onPrepareOptionsMenu(menu);
+        }
+
+        return true;
+    }
+
+    public void registerForOnPrepareOptionsMenu(OnPrepareOptionsMenuListener component) {
+        onPrepareOptionsMenuListeners.add(component);
+    }
+
+
+    public void addExitButtonToMenu(Menu menu) {
     MenuItem stopApplicationItem = menu.add(Menu.NONE, Menu.NONE, Menu.FIRST,
     "Stop this application")
     .setOnMenuItemClickListener(new OnMenuItemClickListener() {
@@ -1908,6 +1932,9 @@ public class Form extends Activity
     System.err.println("Form.clear() About to do moby GC!");
     System.gc();
     dimChanges.clear();
+
+      onCreateOptionsMenuListeners.clear();
+          onPrepareOptionsMenuListeners.clear();
   }
 
   public void deleteComponent(Object component) {
