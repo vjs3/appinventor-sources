@@ -6431,9 +6431,8 @@ public interface OdeMessages extends Messages {
   @Description("")
   String reloadWindow();
 
-
-    @DefaultMessage("MenuItemClick")
-   @Description("")
+  @DefaultMessage("MenuItemClick")
+  @Description("")
   String MenuItemClickEvents();
 
 }
