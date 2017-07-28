@@ -6439,4 +6439,13 @@ public interface OdeMessages extends Messages {
     @Description("")
     String setBasicMenuItemTitle();
 
+    @DefaultMessage("Basic menu component title")
+    @Description("")
+    String BasicMenuHelpStringComponentPallette();
+
+    @DefaultMessage("Basic Menu title")
+    @Description("")
+    String basicMenuComponentPallette();
+
+
 }
