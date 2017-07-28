@@ -42,11 +42,11 @@ public final class BasicMenu extends AndroidNonvisibleComponent
         basicMenuItemTitle = title;
     }
 
-   /* @SimpleEvent(description = "")
+    @SimpleEvent(description = "")
     public boolean MenuItemClick() {
         return EventDispatcher.dispatchEvent(this, "OptionsMenuItem");
     }
-*/
+
     @Override
     public void onCreateOptionsMenu(Menu menu) {
         MenuItem menuItem = menu.add(Menu.NONE, Menu.NONE, Menu.NONE, basicMenuItemTitle);
@@ -60,15 +60,17 @@ public final class BasicMenu extends AndroidNonvisibleComponent
     }
 
     @Override
-    public void onDelete() {}
-
-    @Override
-    public boolean onMenuItemClick(MenuItem menuItem) {
-        return false;
+    public void onDelete() {
     }
 
-   /* @Override
+    /*@Override
+    public boolean onMenuItemClick(MenuItem menuItem) {
+        return false;
+    }*/
+
+    @Override
     public boolean onMenuItemClick(MenuItem item) {
         return MenuItemClick();
-    }*/
+
+    }
 }
