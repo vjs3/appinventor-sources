@@ -6435,4 +6435,8 @@ public interface OdeMessages extends Messages {
   @Description("")
   String MenuItemClickEvents();
 
+    @DefaultMessage("Basic Menu title")
+    @Description("")
+    String basicMenuTitle();
+
 }
