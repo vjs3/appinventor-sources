@@ -38,15 +38,15 @@ public final class BasicMenu extends AndroidNonvisibleComponent
     @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_STRING,
             defaultValue = DEFAULT_TITLE)
     @SimpleProperty
-    public void BasicMenuTitle(String title) {
+    public void setBasicMenuItemTitle(String title) {
         basicMenuItemTitle = title;
     }
 
-    @SimpleEvent(description = "")
+   /* @SimpleEvent(description = "")
     public boolean MenuItemClick() {
         return EventDispatcher.dispatchEvent(this, "OptionsMenuItem");
     }
-
+*/
     @Override
     public void onCreateOptionsMenu(Menu menu) {
         MenuItem menuItem = menu.add(Menu.NONE, Menu.NONE, Menu.NONE, basicMenuItemTitle);
@@ -63,7 +63,12 @@ public final class BasicMenu extends AndroidNonvisibleComponent
     public void onDelete() {}
 
     @Override
+    public boolean onMenuItemClick(MenuItem menuItem) {
+        return false;
+    }
+
+   /* @Override
     public boolean onMenuItemClick(MenuItem item) {
         return MenuItemClick();
-    }
+    }*/
 }
