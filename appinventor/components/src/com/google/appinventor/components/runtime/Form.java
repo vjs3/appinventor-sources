@@ -178,6 +178,7 @@ public class Form extends AppCompatActivity
 
   // AppInventor lifecycle: listeners for the Initialize Event
   private final Set<OnInitializeListener> onInitializeListeners = Sets.newHashSet();
+  private final Set<OnPrepareOptionsMenuListener> onPrepareOptionsMenuListeners = Sets.newHashSet();
 
   // Listeners for options menu.
   private final Set<OnCreateOptionsMenuListener> onCreateOptionsMenuListeners = Sets.newHashSet();
@@ -1820,6 +1821,25 @@ public class Form extends AppCompatActivity
     return true;
   }
 
+  @Override
+  public boolean onPrepareOptionsMenu(Menu menu) {
+    menu.clear();
+    super.onPrepareOptionsMenu(menu);
+
+    addExitButtonToMenu(menu);
+    addAboutInfoToMenu(menu);
+
+    for (OnPrepareOptionsMenuListener onPrepareOptionsMenuListener : onPrepareOptionsMenuListeners) {
+      onPrepareOptionsMenuListener.onPrepareOptionsMenu(menu);
+    }
+
+    return true;
+  }
+
+  public void registerForOnPrepareOptionsMenu(OnPrepareOptionsMenuListener component) {
+    onPrepareOptionsMenuListeners.add(component);
+  }
+
   public void addExitButtonToMenu(Menu menu) {
     MenuItem stopApplicationItem = menu.add(Menu.NONE, Menu.NONE, Menu.FIRST,
     "Stop this application")
@@ -1907,6 +1927,7 @@ public class Form extends AppCompatActivity
     onInitializeListeners.clear();
     onCreateOptionsMenuListeners.clear();
     onOptionsItemSelectedListeners.clear();
+    onPrepareOptionsMenuListeners.clear();
     screenInitialized = false;
     System.err.println("Form.clear() About to do moby GC!");
     System.gc();

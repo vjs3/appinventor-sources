@@ -6415,4 +6415,16 @@ public interface OdeMessages extends Messages {
   @Description("")
   String reloadWindow();
 
+  @DefaultMessage("Simple Menu title")
+  @Description("")
+  String SimpleMenuItemTitleProperties();
+
+  @DefaultMessage("Simple menu component title")
+  @Description("")
+  String SimpleMenuHelpStringComponentPallette();
+
+  @DefaultMessage("Simple Menu title")
+  @Description("")
+  String SimpleMenuComponentPallette();
+
 }
