@@ -538,4 +538,10 @@ public interface Images extends Resources {
   @Source("com/google/appinventor/images/proximitysensor.png")
   ImageResource proximitysensor();
 
+  /**
+   * Designer palette item: menu item component
+   */
+  @Source("com/google/appinventor/images/menu.png")
+  ImageResource menu();
+
 }
