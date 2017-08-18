@@ -25,6 +25,7 @@ public final class SimpleMenu extends AndroidNonvisibleComponent
   private String simpleMenuItemTitle;
 
   static final String DEFAULT_TITLE = "Menu Item";
+  private boolean menuClick = true;
 
   public SimpleMenu(ComponentContainer container) {
     super(container.$form());
@@ -46,6 +47,13 @@ public final class SimpleMenu extends AndroidNonvisibleComponent
   public boolean MenuItemClick() {
     return EventDispatcher.dispatchEvent(this, "OptionsMenuItem");
   }*/
+
+  @SimpleProperty()
+  public boolean MenuIcon(){return menuClick;}
+
+  @DesignerProperty(editorType = PropertyTypeConstants.PROPERTY_TYPE_BOOLEAN, defaultValue = "True")
+  @SimpleProperty()
+  public void MenuIcon(boolean click){menuClick = click;}
 
   @Override
   public void onCreateOptionsMenu(Menu menu) {

@@ -6427,4 +6427,8 @@ public interface OdeMessages extends Messages {
   @Description("")
   String simpleMenuComponentPallette();
 
+  @DefaultMessage("Simple menu icon click")
+  @Description("")
+  String MenuIcon();
+
 }
